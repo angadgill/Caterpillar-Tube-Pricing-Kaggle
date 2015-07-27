@@ -12,18 +12,18 @@ test2 = pd.merge(test, tube, on='tube_assembly_id')
 # TODO: Create dimension: number of components
 # TODO: Create dimension for each component
 # Adding a dimension for each component
-# bill_of_materials = pd.read_csv('data/bill_of_materials.csv')
-# b = pd.wide_to_long(bill_of_materials, ['component_id_', 'quantity_'], i='tube_assembly_id', j='count')
-# b = b.reset_index()
-# b = b.drop('count', axis=1)
-# b = b.dropna()
-# b = b.pivot_table(index='tube_assembly_id', columns='component_id_', values='quantity_')
-# b = b.reset_index()
-# b = b.fillna(0)
-# train2 = pd.merge(train2, b, on='tube_assembly_id')
-# test2 = pd.merge(test2, b, on='tube_assembly_id')
-
-# TODO: Create dimensions from date
+bill_of_materials = pd.read_csv('data/bill_of_materials.csv')
+b = pd.wide_to_long(bill_of_materials, ['component_id_', 'quantity_'], i='tube_assembly_id', j='count')
+b = b.reset_index()
+b = b.drop('count', axis=1)
+b = b.dropna()
+b = b.pivot_table(index='tube_assembly_id', columns='component_id_', values='quantity_')
+b = b.reset_index()
+b = b.fillna(0)
+train2 = pd.merge(train2, b, on='tube_assembly_id', how='left')
+train2 = train2.fillna(0)
+test2 = pd.merge(test2, b, on='tube_assembly_id', how='left')
+test2 = test2.fillna(0)
 
 # TODO: Create dimension using component specs if needed
 # components = pd.read_csv('data/components.csv')
@@ -33,6 +33,11 @@ test2 = pd.merge(test, tube, on='tube_assembly_id')
 #     c = pd.read_csv(path.join('data',f))
 #     print c.columns
 #     components = pd.merge(components, c, how='left')
+
+# TODO: Create dimension using material_id, end_a, end_x
+# TODO: Create dimension using end_a
+# TODO: Create dimension using end_a
+# TODO: Create dimension using material_id
 
 X = train2[[c for c in train2.columns if c!='cost']]
 X = X.drop(['tube_assembly_id', 'supplier', 'material_id', 'end_a', 'end_x', 'quote_date'], axis=1)
