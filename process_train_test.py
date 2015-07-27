@@ -1,5 +1,10 @@
 import pandas as pd
 import rmsle
+from preprocess import scale
+
+from sklearn.linear_model import LinearRegression
+from sklearn.decomposition import PCA
+
 
 print "Importing data..."
 train = pd.read_csv('data/train_set.csv', parse_dates=[2])
@@ -10,14 +15,18 @@ test2 = pd.merge(test, tube, on='tube_assembly_id')
 
 #specs = pd.read_csv('data/specs.csv')
 
+print "Scale dimensions..."
+scale_dimensions  = ['annual_usage', 'min_order_quantity', 'quantity', 'diameter', 'bend_radius', 'wall', 'length', 'num_bends', 'num_boss', 'num_bracket']
+train2[scale_dimensions] = scale(train2[scale_dimensions])
+test2[scale_dimensions] = scale(test2[scale_dimensions])
+
 print "Creating dimensions..."
-# TODO: Create dimension: number of components
 
 # Process data to create dimensions related to components
-bill_of_materials = pd.read_csv('data/bill_of_materials.csv')
-b = pd.wide_to_long(bill_of_materials, ['component_id_', 'quantity_'], i='tube_assembly_id', j='count')
-b = b.reset_index()
-b = b.drop('count', axis=1)
+# bill_of_materials = pd.read_csv('data/bill_of_materials.csv')
+# b = pd.wide_to_long(bill_of_materials, ['component_id_', 'quantity_'], i='tube_assembly_id', j='count')
+# b = b.reset_index()
+# b = b.drop('count', axis=1)
 
 # Adding a dimension for number of components
 # b1 = b.drop('component_id_', axis=1)
@@ -30,13 +39,13 @@ b = b.drop('count', axis=1)
 # test2 = test2.fillna(0)
 
 # Adding a dimension for each component
-b2 = b.pivot_table(index='tube_assembly_id', columns='component_id_', values='quantity_')
-b2 = b2.reset_index()
-b2 = b2.fillna(0)
-train2 = pd.merge(train2, b2, on='tube_assembly_id', how='left')
-train2 = train2.fillna(0)
-test2 = pd.merge(test2, b2, on='tube_assembly_id', how='left')
-test2 = test2.fillna(0)
+# b2 = b.pivot_table(index='tube_assembly_id', columns='component_id_', values='quantity_')
+# b2 = b2.reset_index()
+# b2 = b2.fillna(0)
+# train2 = pd.merge(train2, b2, on='tube_assembly_id', how='left')
+# train2 = train2.fillna(0)
+# test2 = pd.merge(test2, b2, on='tube_assembly_id', how='left')
+# test2 = test2.fillna(0)
 
 # TODO: Create dimension using component specs if needed
 # components = pd.read_csv('data/components.csv')
@@ -58,6 +67,7 @@ X = X.replace('Yes', 1)
 X = X.replace('No', 0)
 X = X.replace('Y', 1)
 X = X.replace('N', 0)
+# X = scale(X, axis=0, copy=False)
 
 X_test = test2
 X_test = X_test.drop(['tube_assembly_id', 'supplier', 'material_id', 'end_a', 'end_x', 'quote_date' ,'id'], axis=1)
@@ -65,18 +75,18 @@ X_test = X_test.replace('Yes', 1)
 X_test = X_test.replace('No', 0)
 X_test = X_test.replace('Y', 1)
 X_test = X_test.replace('N', 0)
+# X_test = scale(X_test, axis=0, copy=False)
 
 
 y = train2['cost']
 (m, _) = X.shape
 
 #PCA
-from sklearn.decomposition import PCA
-pca = PCA(n_components=5)
-pca.fit(X,y)
-X = pca.transform(X)
+# pca = PCA(n_components=10)
+# pca.fit(X,y)
+# X = pca.transform(X)
 
-from sklearn.linear_model import LinearRegression
+# Linear Regression
 model = LinearRegression(normalize=True)
 print "Running Linear Regression..."
 model.fit(X[:m/2], y[:m/2])
@@ -96,20 +106,20 @@ print "Error:", error
 
 
 # Train model on full data and create submission file
-pca = PCA(n_components=5)
-pca.fit(X_test,y)
-X_test = pca.transform(X_test)
-
-model = LinearRegression(normalize=True)
-print "Running Linear Regression on test data..."
-model.fit(X, y)
-output = model.predict(X_test)
-for i,p in enumerate(output):
-    if p < 0:
-        output[i] = 0
-
-output = pd.DataFrame(output, index=range(1, len(output)+1))
-output.to_csv('output.csv', index=True, header=['cost'], index_label='id')
-
+# pca = PCA(n_components=5)
+# pca.fit(X_test,y)
+# X_test = pca.transform(X_test)
+#
+# model = LinearRegression(normalize=True)
+# print "Running Linear Regression on test data..."
+# model.fit(X, y)
+# output = model.predict(X_test)
+# for i,p in enumerate(output):
+#     if p < 0:
+#         output[i] = 0
+#
+# output = pd.DataFrame(output, index=range(1, len(output)+1))
+# output.to_csv('output.csv', index=True, header=['cost'], index_label='id')
+#
 
 print "Done!"
