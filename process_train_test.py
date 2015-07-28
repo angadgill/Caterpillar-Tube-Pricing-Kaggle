@@ -3,7 +3,7 @@ import rmsle
 import preprocess
 
 from sklearn.preprocessing import LabelEncoder
-from sklearn.linear_model import ElasticNet, ElasticNetCV, Lasso, LassoCV
+from sklearn.linear_model import Lasso, LassoCV
 from sklearn.decomposition import PCA
 
 
@@ -24,9 +24,9 @@ q = test2[test2.bracket_pricing=='No'].min_order_quantity
 test2.loc[test2.bracket_pricing=='No', 'quantity'] = q
 test2 = test2.drop(['min_order_quantity', 'bracket_pricing'], axis=1)
 
-# label encode the categorical variables
+# Encode the labels of the categorical variables
 # borrowed and modified from 'Keras starter code' by fchollet
-# columns = ['supplier', 'material_id', 'end_a', 'end_x', 'end_a_1x', 'end_a_2x', 'end_x_1x', 'end_x_2x']
+# columns = ['end_a_1x', 'end_a_2x', 'end_x_1x', 'end_x_2x']
 columns = ['end_a_1x', 'end_a_2x', 'end_x_1x', 'end_x_2x']
 for c in columns:
     lbl = LabelEncoder()
@@ -55,8 +55,6 @@ for c in columns:
     train2 = preprocess.long_to_wide(train2, 'tube_assembly_id', c)
     test2 = preprocess.long_to_wide(test2, 'tube_assembly_id', c)
 
-
-#specs = pd.read_csv('data/specs.csv')
 
 print "Scale dimensions..."
 scale_dimensions  = ['annual_usage', 'quantity', 'diameter', 'bend_radius', 'wall', 'length', 'num_bends', 'num_boss', 'num_bracket']
@@ -90,7 +88,8 @@ print "Creating dimensions..."
 # test2 = pd.merge(test2, b2, on='tube_assembly_id', how='left')
 # test2 = test2.fillna(0)
 
-# TODO: Create dimension using component specs if needed
+# TODO: Create dimension using components and specs if needed
+# specs = pd.read_csv('data/specs.csv')
 # components = pd.read_csv('data/components.csv')
 # from os import listdir, path
 # comp_files = [f for f in listdir('data') if 'comp_' in f]
@@ -117,11 +116,7 @@ split = int(m*0.8)
 # X = pca.transform(X)
 
 # Linear Regression
-# model = LinearRegression(normalize=False)
 alphas = [0.001, 0.01, 0.1, 0.3, 1, 3, 10]
-# for alpha in alphas:
-#     print "Alpha:", alpha
-# model = ElasticNetCV(alphas=alphas)
 model = LassoCV(alphas=alphas, max_iter=10000)
 
 print "Training model..."
@@ -135,7 +130,7 @@ print "Score:", score
 prediction = model.predict(X[split:])
 actual = y[split:]
 
-#zero negative predictions
+#zero-out negative predictions
 for i,p in enumerate(prediction):
     if p < 0:
         prediction[i] = 0
@@ -150,11 +145,13 @@ raw_input("Press Enter to continue...")
 # pca.fit(X_test,y)
 # X_test = pca.transform(X_test)
 #
-# model = ElasticNet(alpha=alpha)
+model = Lasso(alpha=alpha)
 print "Training model..."
 model.fit(X, y)
 print "Running model on test data..."
 output = model.predict(X_test)
+
+#zero-out negative predictions
 for i,p in enumerate(output):
     if p < 0:
         output[i] = 0
