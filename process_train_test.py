@@ -15,6 +15,14 @@ tube = pd.read_csv('data/tube.csv')
 train2 = pd.merge(train, tube, on='tube_assembly_id')
 test2 = pd.merge(test, tube, on='tube_assembly_id')
 
+print "Scale dimensions..."
+scale_dimensions  = ['annual_usage', 'quantity', 'diameter', 'bend_radius', 'wall', 'length', 'num_bends', 'num_boss', 'num_bracket']
+train2[scale_dimensions] = preprocess.scale(train2[scale_dimensions])
+test2[scale_dimensions] = preprocess.scale(test2[scale_dimensions])
+
+
+print "Creating dimensions..."
+
 # Eliminate bracket_pricing and min_order_quanity dimensions
 # by consolidating their info in quantity
 q = train2[train2.bracket_pricing=='No'].min_order_quantity
@@ -56,13 +64,6 @@ for c in columns:
 #     train2 = preprocess.long_to_wide(train2, 'tube_assembly_id', c)
 #     test2 = preprocess.long_to_wide(test2, 'tube_assembly_id', c)
 #
-
-print "Scale dimensions..."
-scale_dimensions  = ['annual_usage', 'quantity', 'diameter', 'bend_radius', 'wall', 'length', 'num_bends', 'num_boss', 'num_bracket']
-train2[scale_dimensions] = preprocess.scale(train2[scale_dimensions])
-test2[scale_dimensions] = preprocess.scale(test2[scale_dimensions])
-
-print "Creating dimensions..."
 
 # Process data to create dimensions related to components
 # bill_of_materials = pd.read_csv('data/bill_of_materials.csv')
