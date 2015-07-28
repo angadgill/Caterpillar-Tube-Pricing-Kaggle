@@ -1,7 +1,8 @@
 import pandas as pd
 import rmsle
-from preprocess import scale
+import preprocess
 
+from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import ElasticNet, ElasticNetCV, Lasso, LassoCV
 from sklearn.decomposition import PCA
 
@@ -23,20 +24,52 @@ q = test2[test2.bracket_pricing=='No'].min_order_quantity
 test2.loc[test2.bracket_pricing=='No', 'quantity'] = q
 test2 = test2.drop(['min_order_quantity', 'bracket_pricing'], axis=1)
 
+# label encode the categorical variables
+# borrowed and modified from 'Keras starter code' by fchollet
+# columns = ['supplier', 'material_id', 'end_a', 'end_x', 'end_a_1x', 'end_a_2x', 'end_x_1x', 'end_x_2x']
+columns = ['end_a_1x', 'end_a_2x', 'end_x_1x', 'end_x_2x']
+for c in columns:
+    lbl = LabelEncoder()
+    lbl.fit(list(train2[c]) + list(test2[c]))
+    train2[c] = lbl.transform(train2[c])
+    test2[c] = lbl.transform(test2[c])
+
+# Process material_id
+# borrowed and modified from 'Keras starter code' by fchollet
+train2['material_id'].fillna('SP-9999', inplace=True)
+test2['material_id'].fillna('SP-9999', inplace=True)
+
+#Process end_a
+train2.end_a = train2.end_a.replace('9999', 'EF-9999')
+test2.end_a = test2.end_a.replace('9999', 'EF-9999')
+
+#Process end_x
+train2.end_x = train2.end_x.replace('9999', 'EF-9999')
+test2.end_x = test2.end_x.replace('9999', 'EF-9999')
+
+
+# Convert the following dimensions to multiple dimensions:
+# 'supplier', 'material_id', 'end_a', 'end_x'
+columns = ['supplier', 'material_id', 'end_a', 'end_x']
+for c in columns:
+    train2 = preprocess.long_to_wide(train2, 'tube_assembly_id', c)
+    test2 = preprocess.long_to_wide(test2, 'tube_assembly_id', c)
+
+
 #specs = pd.read_csv('data/specs.csv')
 
 print "Scale dimensions..."
 scale_dimensions  = ['annual_usage', 'quantity', 'diameter', 'bend_radius', 'wall', 'length', 'num_bends', 'num_boss', 'num_bracket']
-train2[scale_dimensions] = scale(train2[scale_dimensions])
-test2[scale_dimensions] = scale(test2[scale_dimensions])
+train2[scale_dimensions] = preprocess.scale(train2[scale_dimensions])
+test2[scale_dimensions] = preprocess.scale(test2[scale_dimensions])
 
 print "Creating dimensions..."
 
 # Process data to create dimensions related to components
-bill_of_materials = pd.read_csv('data/bill_of_materials.csv')
-b = pd.wide_to_long(bill_of_materials, ['component_id_', 'quantity_'], i='tube_assembly_id', j='count')
-b = b.reset_index()
-b = b.drop('count', axis=1)
+# bill_of_materials = pd.read_csv('data/bill_of_materials.csv')
+# b = pd.wide_to_long(bill_of_materials, ['component_id_', 'quantity_'], i='tube_assembly_id', j='count')
+# b = b.reset_index()
+# b = b.drop('count', axis=1)
 
 # Adding a dimension for number of components
 # b1 = b.drop('component_id_', axis=1)
@@ -49,13 +82,13 @@ b = b.drop('count', axis=1)
 # test2 = test2.fillna(0)
 
 # Adding a dimension for each component
-b2 = b.pivot_table(index='tube_assembly_id', columns='component_id_', values='quantity_')
-b2 = b2.reset_index()
-b2 = b2.fillna(0)
-train2 = pd.merge(train2, b2, on='tube_assembly_id', how='left')
-train2 = train2.fillna(0)
-test2 = pd.merge(test2, b2, on='tube_assembly_id', how='left')
-test2 = test2.fillna(0)
+# b2 = b.pivot_table(index='tube_assembly_id', columns='component_id_', values='quantity_')
+# b2 = b2.reset_index()
+# b2 = b2.fillna(0)
+# train2 = pd.merge(train2, b2, on='tube_assembly_id', how='left')
+# train2 = train2.fillna(0)
+# test2 = pd.merge(test2, b2, on='tube_assembly_id', how='left')
+# test2 = test2.fillna(0)
 
 # TODO: Create dimension using component specs if needed
 # components = pd.read_csv('data/components.csv')
@@ -66,26 +99,12 @@ test2 = test2.fillna(0)
 #     print c.columns
 #     components = pd.merge(components, c, how='left')
 
-# TODO: Create dimension using material_id, end_a, end_x
-# TODO: Create dimension using end_a
-# TODO: Create dimension using end_a
-# TODO: Create dimension using material_id
+X = train2
+X = X.drop(['tube_assembly_id', 'quote_date', 'cost'], axis=1)
 
-X = train2[[c for c in train2.columns if c!='cost']]
-X = X.drop(['tube_assembly_id', 'supplier', 'material_id', 'end_a', 'end_x', 'quote_date'], axis=1)
-X = X.replace('Yes', 1)
-X = X.replace('No', 0)
-X = X.replace('Y', 1)
-X = X.replace('N', 0)
-# X = scale(X, axis=0, copy=False)
-
+# TODO: Figure out a way to align the columns in train and test datasets
 X_test = test2
-X_test = X_test.drop(['tube_assembly_id', 'supplier', 'material_id', 'end_a', 'end_x', 'quote_date' ,'id'], axis=1)
-X_test = X_test.replace('Yes', 1)
-X_test = X_test.replace('No', 0)
-X_test = X_test.replace('Y', 1)
-X_test = X_test.replace('N', 0)
-# X_test = scale(X_test, axis=0, copy=False)
+X_test = X_test.drop(['tube_assembly_id', 'quote_date' ,'id'], axis=1)
 
 
 y = train2['cost']
@@ -103,7 +122,7 @@ alphas = [0.001, 0.01, 0.1, 0.3, 1, 3, 10]
 # for alpha in alphas:
 #     print "Alpha:", alpha
 # model = ElasticNetCV(alphas=alphas)
-model = LassoCV(alphas=alphas)
+model = LassoCV(alphas=alphas, max_iter=10000)
 
 print "Training model..."
 model.fit(X[:split], y[:split])
@@ -132,7 +151,6 @@ raw_input("Press Enter to continue...")
 # X_test = pca.transform(X_test)
 #
 # model = ElasticNet(alpha=alpha)
-model = Lasso(alpha=alpha)
 print "Training model..."
 model.fit(X, y)
 print "Running model on test data..."
