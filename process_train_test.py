@@ -1,6 +1,7 @@
 import pandas as pd
 import rmsle
 import preprocess
+import numpy as np
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import Lasso, LassoCV
@@ -34,27 +35,27 @@ for c in columns:
     train2[c] = lbl.transform(train2[c])
     test2[c] = lbl.transform(test2[c])
 
-# Process material_id
-# borrowed and modified from 'Keras starter code' by fchollet
-train2['material_id'].fillna('SP-9999', inplace=True)
-test2['material_id'].fillna('SP-9999', inplace=True)
-
-#Process end_a
-train2.end_a = train2.end_a.replace('9999', 'EF-9999')
-test2.end_a = test2.end_a.replace('9999', 'EF-9999')
-
-#Process end_x
-train2.end_x = train2.end_x.replace('9999', 'EF-9999')
-test2.end_x = test2.end_x.replace('9999', 'EF-9999')
-
-
-# Convert the following dimensions to multiple dimensions:
-# 'supplier', 'material_id', 'end_a', 'end_x'
-columns = ['supplier', 'material_id', 'end_a', 'end_x']
-for c in columns:
-    train2 = preprocess.long_to_wide(train2, 'tube_assembly_id', c)
-    test2 = preprocess.long_to_wide(test2, 'tube_assembly_id', c)
-
+# # Process material_id
+# # borrowed and modified from 'Keras starter code' by fchollet
+# train2['material_id'].fillna('SP-9999', inplace=True)
+# test2['material_id'].fillna('SP-9999', inplace=True)
+#
+# #Process end_a
+# train2.end_a = train2.end_a.replace('9999', 'EF-9999')
+# test2.end_a = test2.end_a.replace('9999', 'EF-9999')
+#
+# #Process end_x
+# train2.end_x = train2.end_x.replace('9999', 'EF-9999')
+# test2.end_x = test2.end_x.replace('9999', 'EF-9999')
+#
+#
+# # Convert the following dimensions to multiple dimensions:
+# # 'supplier', 'material_id', 'end_a', 'end_x'
+# columns = ['supplier', 'material_id', 'end_a', 'end_x']
+# for c in columns:
+#     train2 = preprocess.long_to_wide(train2, 'tube_assembly_id', c)
+#     test2 = preprocess.long_to_wide(test2, 'tube_assembly_id', c)
+#
 
 print "Scale dimensions..."
 scale_dimensions  = ['annual_usage', 'quantity', 'diameter', 'bend_radius', 'wall', 'length', 'num_bends', 'num_boss', 'num_bracket']
@@ -99,14 +100,15 @@ print "Creating dimensions..."
 #     components = pd.merge(components, c, how='left')
 
 X = train2
-X = X.drop(['tube_assembly_id', 'quote_date', 'cost'], axis=1)
+X = X.drop(['tube_assembly_id', 'quote_date', 'cost', 'supplier', 'material_id', 'end_a', 'end_x'], axis=1)
 
 # TODO: Figure out a way to align the columns in train and test datasets
 X_test = test2
-X_test = X_test.drop(['tube_assembly_id', 'quote_date' ,'id'], axis=1)
+X_test = X_test.drop(['tube_assembly_id', 'quote_date' ,'id', 'supplier', 'material_id', 'end_a', 'end_x'], axis=1)
 
 
 y = train2['cost']
+y = np.log(y)
 (m, _) = X.shape
 split = int(m*0.8)
 
@@ -150,6 +152,7 @@ print "Training model..."
 model.fit(X, y)
 print "Running model on test data..."
 output = model.predict(X_test)
+output = np.exp(output)
 
 #zero-out negative predictions
 for i,p in enumerate(output):
