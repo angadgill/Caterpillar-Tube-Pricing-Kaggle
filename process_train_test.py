@@ -5,23 +5,39 @@ import numpy as np
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.linear_model import Lasso, LassoCV
-from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor
 
 
 print "Importing data..."
 train = pd.read_csv('data/train_set.csv', parse_dates=[2])
 test = pd.read_csv('data/test_set.csv', parse_dates=[3])
 tube = pd.read_csv('data/tube.csv')
-train2 = pd.merge(train, tube, on='tube_assembly_id')
-test2 = pd.merge(test, tube, on='tube_assembly_id')
-
-print "Scale dimensions..."
-scale_dimensions  = ['annual_usage', 'quantity', 'diameter', 'bend_radius', 'wall', 'length', 'num_bends', 'num_boss', 'num_bracket']
-train2[scale_dimensions] = preprocess.scale(train2[scale_dimensions])
-test2[scale_dimensions] = preprocess.scale(test2[scale_dimensions])
-
 
 print "Creating dimensions..."
+# Process material_id
+# borrowed and modified from 'Keras starter code' by fchollet
+tube.material_id.fillna('SP-9999', inplace=True)
+
+#Process end_a
+tube.end_a = tube.end_a.replace('9999', 'EF-9999')
+
+#Process end_x
+tube.end_x = tube.end_x.replace('9999', 'EF-9999')
+
+
+# Convert the following dimensions to multiple dimensions:
+# 'material_id', 'end_a', 'end_x'
+columns = ['material_id', 'end_a', 'end_x']
+for c in columns:
+    tube = preprocess.long_to_wide(tube, 'tube_assembly_id', c)
+
+train2 = pd.merge(train, tube, on='tube_assembly_id', how='left')
+test2 = pd.merge(test, tube, on='tube_assembly_id', how='left')
+
+# Convert 'supplier' into multiple dimensions
+# train2 = preprocess.long_to_wide(train2, 'tube_assembly_id', 'supplier')
+# test2 = preprocess.long_to_wide(test2, 'tube_assembly_id', 'supplier')
+#
 
 # Eliminate bracket_pricing and min_order_quanity dimensions
 # by consolidating their info in quantity
@@ -42,28 +58,6 @@ for c in columns:
     lbl.fit(list(train2[c]) + list(test2[c]))
     train2[c] = lbl.transform(train2[c])
     test2[c] = lbl.transform(test2[c])
-
-# # Process material_id
-# # borrowed and modified from 'Keras starter code' by fchollet
-# train2['material_id'].fillna('SP-9999', inplace=True)
-# test2['material_id'].fillna('SP-9999', inplace=True)
-#
-# #Process end_a
-# train2.end_a = train2.end_a.replace('9999', 'EF-9999')
-# test2.end_a = test2.end_a.replace('9999', 'EF-9999')
-#
-# #Process end_x
-# train2.end_x = train2.end_x.replace('9999', 'EF-9999')
-# test2.end_x = test2.end_x.replace('9999', 'EF-9999')
-#
-#
-# # Convert the following dimensions to multiple dimensions:
-# # 'supplier', 'material_id', 'end_a', 'end_x'
-# columns = ['supplier', 'material_id', 'end_a', 'end_x']
-# for c in columns:
-#     train2 = preprocess.long_to_wide(train2, 'tube_assembly_id', c)
-#     test2 = preprocess.long_to_wide(test2, 'tube_assembly_id', c)
-#
 
 # Process data to create dimensions related to components
 # bill_of_materials = pd.read_csv('data/bill_of_materials.csv')
@@ -100,32 +94,37 @@ for c in columns:
 #     print c.columns
 #     components = pd.merge(components, c, how='left')
 
-X = train2
-X = X.drop(['tube_assembly_id', 'quote_date', 'cost', 'supplier', 'material_id', 'end_a', 'end_x'], axis=1)
+# train2['quantity'] = np.log(train2.quantity)
+# test2['quantity'] = np.log(test2.quantity)
 
-# TODO: Figure out a way to align the columns in train and test datasets
+print "Scale dimensions..."
+scale_dimensions = ['annual_usage', 'quantity', 'diameter', 'bend_radius', 'wall', 'length', 'num_bends', 'num_boss', 'num_bracket']
+train2[scale_dimensions] = preprocess.scale(train2[scale_dimensions])
+test2[scale_dimensions] = preprocess.scale(test2[scale_dimensions])
+
+
+X = train2
+# X = X.drop(['tube_assembly_id', 'quote_date', 'cost', 'supplier', 'material_id', 'end_a', 'end_x'], axis=1)
+X = X.drop(['tube_assembly_id', 'quote_date', 'cost', 'supplier'], axis=1)
+
 X_test = test2
-X_test = X_test.drop(['tube_assembly_id', 'quote_date' ,'id', 'supplier', 'material_id', 'end_a', 'end_x'], axis=1)
+# X_test = X_test.drop(['tube_assembly_id', 'quote_date','id', 'supplier', 'material_id', 'end_a', 'end_x'], axis=1)
+X_test = X_test.drop(['tube_assembly_id', 'quote_date','id', 'supplier'], axis=1)
 
 
 y = train2['cost']
-y = np.log(y)
+
 (m, _) = X.shape
-split = int(m*0.8)
+split = int(m*0.5)
 
-#PCA
-# pca = PCA(n_components=10)
-# pca.fit(X,y)
-# X = pca.transform(X)
-
-# Linear Regression
-alphas = [0.001, 0.01, 0.1, 0.3, 1, 3, 10]
-model = LassoCV(alphas=alphas, max_iter=10000)
+# alphas = [0.001, 0.01, 0.1, 0.3, 1, 3, 10]
+# model = LassoCV(alphas=alphas, max_iter=10000)
+model = RandomForestRegressor()
 
 print "Training model..."
 model.fit(X[:split], y[:split])
-alpha = model.alpha_
-print "Alpha:", alpha
+# alpha = model.alpha_
+# print "Alpha:", alpha
 
 score = model.score(X[split:], y[split:])
 print "Score:", score
@@ -134,33 +133,28 @@ prediction = model.predict(X[split:])
 actual = y[split:]
 
 #zero-out negative predictions
-for i,p in enumerate(prediction):
-    if p < 0:
-        prediction[i] = 0
+# for i,p in enumerate(prediction):
+#     if p < 0:
+#         prediction[i] = 0
 
 error = rmsle.error(prediction, actual)
 print "Error:", error
 
-raw_input("Press Enter to continue...")
+raw_input("Press Enter to train model and save output:")
 
-# Train model on full data and create submission file
-# pca = PCA(n_components=5)
-# pca.fit(X_test,y)
-# X_test = pca.transform(X_test)
-#
-model = Lasso(alpha=alpha)
-print "Training model..."
+print "Training model with all training data..."
+model = RandomForestRegressor()
 model.fit(X, y)
-print "Running model on test data..."
 output = model.predict(X_test)
-output = np.exp(output)
+# output = np.exp(output)
 
 #zero-out negative predictions
-for i,p in enumerate(output):
-    if p < 0:
-        output[i] = 0
+# for i,p in enumerate(output):
+#     if p < 0:
+#         output[i] = 0
 
 output = pd.DataFrame(output, index=range(1, len(output)+1))
+print "Saving output.csv..."
 output.to_csv('output.csv', index=True, header=['cost'], index_label='id')
 
 

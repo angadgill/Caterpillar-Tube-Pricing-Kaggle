@@ -6,6 +6,7 @@ import pandas as pd
 def scale(x):
     x = np.array(x)
     return (x - x.mean())/x.std()
+    # return x/x.std()
 
 
 def long_to_wide(df, index, column, remove_value='NONE'):
