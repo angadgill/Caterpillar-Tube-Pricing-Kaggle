@@ -4,9 +4,8 @@ import preprocess
 import numpy as np
 
 from sklearn.preprocessing import LabelEncoder
-from sklearn.linear_model import Lasso, LassoCV
 from sklearn.ensemble import RandomForestRegressor
-
+from sklearn.cross_validation import ShuffleSplit
 
 print "Importing data..."
 train = pd.read_csv('data/train_set.csv', parse_dates=[2])
@@ -114,31 +113,18 @@ X_test = X_test.drop(['tube_assembly_id', 'quote_date','id', 'supplier'], axis=1
 
 y = train2['cost']
 
-(m, _) = X.shape
-split = int(m*0.5)
+m = X.shape[0]
 
-# alphas = [0.001, 0.01, 0.1, 0.3, 1, 3, 10]
-# model = LassoCV(alphas=alphas, max_iter=10000)
-model = RandomForestRegressor()
+split = ShuffleSplit(n=int(m*0.9), n_iter=2, test_size=0.2)
 
-print "Training model..."
-model.fit(X[:split], y[:split])
-# alpha = model.alpha_
-# print "Alpha:", alpha
-
-score = model.score(X[split:], y[split:])
-print "Score:", score
-
-prediction = model.predict(X[split:])
-actual = y[split:]
-
-#zero-out negative predictions
-# for i,p in enumerate(prediction):
-#     if p < 0:
-#         prediction[i] = 0
-
-error = rmsle.error(prediction, actual)
-print "Error:", error
+for (split_train, split_test) in split:
+    model = RandomForestRegressor()
+    print "Training model..."
+    model.fit(X.loc[split_train,:],y[split_train])
+    score_test = model.score(X.loc[split_test,:], y[split_test])
+    print "Test Score:", score_test
+    error_test = rmsle.error(model.predict(X.loc[split_test,:]), y[split_test])
+    print "Test Error:", error_test
 
 raw_input("Press Enter to train model and save output:")
 
@@ -146,7 +132,6 @@ print "Training model with all training data..."
 model = RandomForestRegressor()
 model.fit(X, y)
 output = model.predict(X_test)
-# output = np.exp(output)
 
 #zero-out negative predictions
 # for i,p in enumerate(output):
@@ -156,6 +141,5 @@ output = model.predict(X_test)
 output = pd.DataFrame(output, index=range(1, len(output)+1))
 print "Saving output.csv..."
 output.to_csv('output.csv', index=True, header=['cost'], index_label='id')
-
 
 print "Done!"
